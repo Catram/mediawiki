@@ -3,6 +3,9 @@ name: Build
 on:
   push:
     branches: [main]
+  # Builds without pushing, as the check Dependabot's pull requests wait for.
+  pull_request:
+    branches: [main]
   # Weekly, for fixes to the PHP image.
   schedule:
     - cron: "23 4 * * 1"
@@ -13,7 +16,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: build
+  group: build-${{ github.ref }}
   cancel-in-progress: false
 
 env:
