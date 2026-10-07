@@ -10,12 +10,12 @@ FROM docker.io/library/php:8.4-apache
 RUN set -eux; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends \
-		ghostscript \
-		imagemagick \
-		librsvg2-bin \
-		libtiff-tools \
-		poppler-utils \
-		python3 \
+	ghostscript \
+	imagemagick \
+	librsvg2-bin \
+	libtiff-tools \
+	poppler-utils \
+	python3 \
 	; \
 	rm -rf /var/lib/apt/lists/*
 
@@ -32,12 +32,12 @@ RUN set -eux; \
 	apt-mark auto '.*' > /dev/null; \
 	apt-mark manual $savedAptMark; \
 	ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
-		| awk '/=>/ { so = $(NF-1); if (index(so, "/usr/local/") == 1) { next }; gsub("^/(usr/)?", "", so); printf "*%s\n", so }' \
-		| sort -u \
-		| xargs -r dpkg-query --search \
-		| cut -d: -f1 \
-		| sort -u \
-		| xargs -rt apt-mark manual; \
+	| awk '/=>/ { so = $(NF-1); if (index(so, "/usr/local/") == 1) { next }; gsub("^/(usr/)?", "", so); printf "*%s\n", so }' \
+	| sort -u \
+	| xargs -r dpkg-query --search \
+	| cut -d: -f1 \
+	| sort -u \
+	| xargs -rt apt-mark manual; \
 	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
 	rm -rf /var/lib/apt/lists/*
 
@@ -59,15 +59,15 @@ RUN set -eux; \
 	apt-get install -y --no-install-recommends wget patch; \
 	sh /tmp/build/install.sh "$MW_VERSION" "$MW_SHA256" /var/www/html/w; \
 	for p in /tmp/build/patches/*.patch; do \
-		[ -e "$p" ] || continue; \
-		patch -d w -p1 --forward --batch < "$p"; \
+	[ -e "$p" ] || continue; \
+	patch -d w -p1 --forward --batch < "$p"; \
 	done; \
 	rm -rf /tmp/build; \
 	apt-get purge -y --auto-remove wget patch; \
 	rm -rf /var/lib/apt/lists/*
 
-COPY LocalSettings.php w/LocalSettings.php
-COPY settings/ w/settings/
+# Each wiki's files at the site root; apache.conf serves static/<MW_WIKI>/.
+COPY static/ static/
 
 # Code stays owned by root and read-only to Apache. These are mounted from the
 # host, per wiki, and must be writable by www-data.

@@ -17,26 +17,30 @@ Podman Quadlet, one account per wiki, behind nginx on the host.
 - The changes in `patches/`.
 - PHP 8.4 with Apache, configured by `apache.conf` and `php.ini`. Only
   MediaWiki's entry points run as PHP.
-- `LocalSettings.php` with the settings every wiki shares, and
-  `settings/<wiki>.php` for each wiki.
+- No `LocalSettings.php`: each wiki's deployment mounts its own, with the
+  skins and extensions it loads and its secrets.
+- `static/`: the files at the wikis' site roots, such as logos and the
+  favicon (see `static/README.md`).
 
 ## Running it
 
-The image serves plain HTTP on port 80. It needs:
+The image serves plain HTTP on port 80. It needs `MW_WIKI`, the wiki's name
+(e.g. `danmacu`), which picks its files in `static/`, and these mounts:
 
-| Variable | Meaning |
+| Path | Contents |
 |---|---|
-| `MW_WIKI` | Which `settings/<wiki>.php` to load, e.g. `danmacu` |
-| `MW_SERVER` | The wiki's URL, e.g. `https://danmacu.catram.org` |
-| `MW_DB_SERVER` | Database host; defaults to `mariadb` |
-| `MW_DB_NAME`, `MW_DB_USER`, `MW_DB_PASSWORD` | Database credentials |
-| `MW_SECRET_KEY`, `MW_UPGRADE_KEY` | `$wgSecretKey`, `$wgUpgradeKey` |
+| `/var/www/html/w/LocalSettings.php` | The wiki's settings. Read-only; `www-data` must be able to read it |
+| `/var/www/html/w/images` | Uploads, writable by the container's `www-data` (UID 33) |
+| `/var/www/html/w/cache` | Cache, writable by `www-data`; a tmpfs is best, so each start begins empty |
 
-and two writable mounts, owned by the container's `www-data` (UID 33):
-`/var/www/html/w/images` for uploads and `/var/www/html/w/cache`.
+The Quadlets in ansible-playbooks render each wiki's `LocalSettings.php` from
+a template and map `www-data` to the wiki's account on the host
+(`UserNS=keep-id:uid=33,gid=33`), so it reads the installed file through the
+account's group and owns the uploads as the account.
 
-Jobs are not run during page views. Run them in a second container from the
-same image:
+The settings are expected to set `$wgCacheDirectory = "$IP/cache"`, and
+`$wgJobRunRate = 0` with the jobs run in a second container from the same
+image:
 
 ```sh
 php /var/www/html/w/maintenance/run.php runJobs --wait
@@ -44,8 +48,8 @@ php /var/www/html/w/maintenance/run.php runJobs --wait
 
 ## Skins and extensions
 
-Which ones a wiki loads is up to `LocalSettings.php` and
-`settings/<wiki>.php`. Those the release bundles need nothing more; check the
+Which ones a wiki loads is up to `LocalSettings.php` and the wiki's own
+settings. Those the release bundles need nothing more; check the
 release's `extensions/` and `skins/` folders. Any other is a row in
 `extensions.tsv`, tab-separated with a header: `path` (e.g.
 `extensions/Disambiguator`), `url`, `sha256` and `note`. The tarball must hold
