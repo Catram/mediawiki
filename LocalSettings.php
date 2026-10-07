@@ -61,7 +61,6 @@ wfLoadSkin( 'MonoBook' );
 wfLoadSkin( 'Vector' );
 
 wfLoadExtension( 'Cite' );
-wfLoadExtension( 'Interwiki' );
 wfLoadExtension( 'OATHAuth' );
 wfLoadExtension( 'ParserFunctions' );
 wfLoadExtension( 'WikiEditor' );

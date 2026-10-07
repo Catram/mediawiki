@@ -1,8 +1,8 @@
-# MediaWiki for the Catram wikis: core and the skins and extensions in
-# extensions.txt at one release branch, with patches/ applied, on PHP and
+# MediaWiki for the Catram wikis: a release with its bundled skins and
+# extensions, the others in extensions.tsv, and patches/ applied, on PHP and
 # Apache. One image serves every wiki; MW_WIKI picks the settings at run time.
 
-FROM docker.io/library/php:8.3-apache
+FROM docker.io/library/php:8.4-apache
 
 # Tools that MediaWiki and the extensions call: ImageMagick for thumbnails,
 # Ghostscript and poppler for PdfHandler, libtiff for PagedTiffHandler, rsvg
@@ -45,44 +45,25 @@ RUN a2enmod remoteip rewrite
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
 COPY php.ini /usr/local/etc/php/conf.d/mediawiki.ini
 
-COPY --from=docker.io/library/composer:2 /usr/bin/composer /usr/local/bin/composer
-
-# Core at the release branch, or at MW_COMMIT on it when the build pins one.
-ARG MW_BRANCH=REL1_46
-ARG MW_COMMIT=
-ARG GERRIT=https://gerrit.wikimedia.org/r/mediawiki
+# The release tarball from releases.wikimedia.org, with vendor/ and the
+# bundled skins and extensions, and the ones pinned in extensions.tsv, each
+# download checked against its SHA-256 (see install.sh). Then the local
+# changes, as patches relative to w/, applied in name order.
+ARG MW_VERSION=1.46.2
+ARG MW_SHA256=8f7f937f8bbc1acd4cef1c5362a95f248dcd242020f2588798eb2f73ac2e69ba
 WORKDIR /var/www/html
-RUN set -eux; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends git patch unzip; \
-	git clone --depth 1 --branch "$MW_BRANCH" "$GERRIT/core.git" w; \
-	if [ -n "$MW_COMMIT" ]; then \
-		git -C w fetch --depth 1 origin "$MW_COMMIT"; \
-		git -C w checkout --detach "$MW_COMMIT"; \
-	fi; \
-	git -C w rev-parse HEAD > w/.core-commit
-
-COPY extensions.txt composer.local.json /tmp/build/
-RUN set -eux; \
-	grep -Ev '^[[:space:]]*(#|$)' /tmp/build/extensions.txt | while read -r path; do \
-		git clone --depth 1 --branch "$MW_BRANCH" "$GERRIT/$path.git" "w/$path"; \
-	done; \
-	cp /tmp/build/composer.local.json w/; \
-	COMPOSER_ALLOW_SUPERUSER=1 composer --working-dir=w update --no-dev --no-interaction --optimize-autoloader
-
-# Local changes, as patches relative to w/, applied in name order.
+COPY install.sh extensions.tsv /tmp/build/
 COPY patches/ /tmp/build/patches/
 RUN set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends wget patch; \
+	sh /tmp/build/install.sh "$MW_VERSION" "$MW_SHA256" /var/www/html/w; \
 	for p in /tmp/build/patches/*.patch; do \
 		[ -e "$p" ] || continue; \
 		patch -d w -p1 --forward --batch < "$p"; \
-	done
-
-# The build tools and history are not needed at run time.
-RUN set -eux; \
-	find w -name .git -prune -exec rm -rf {} +; \
-	rm -rf /tmp/build /root/.composer /usr/local/bin/composer; \
-	apt-get purge -y --auto-remove git patch unzip; \
+	done; \
+	rm -rf /tmp/build; \
+	apt-get purge -y --auto-remove wget patch; \
 	rm -rf /var/lib/apt/lists/*
 
 COPY LocalSettings.php w/LocalSettings.php
