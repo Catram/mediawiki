@@ -1,0 +1,72 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  # Weekly, for fixes backported to the release branch and to the PHP image.
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/catram/mediawiki
+  MW_BRANCH: REL1_46
+
+jobs:
+  build:
+    # The self-hosted runner on claw, which builds with rootless Podman.
+    runs-on: [self-hosted, podman]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Find the release branch's current commit
+        id: core
+        run: |
+          commit=$(git ls-remote https://gerrit.wikimedia.org/r/mediawiki/core.git "refs/heads/$MW_BRANCH" | cut -f1)
+          test -n "$commit"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "tag=$MW_BRANCH-${commit:0:7}-$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          COMMIT: ${{ steps.core.outputs.commit }}
+          TAG: ${{ steps.core.outputs.tag }}
+        run: |
+          podman build --pull=always \
+            --build-arg MW_BRANCH="$MW_BRANCH" \
+            --build-arg MW_COMMIT="$COMMIT" \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --label org.mediawiki.core.commit="$COMMIT" \
+            --tag "$IMAGE:$TAG" \
+            --tag "$IMAGE:$MW_BRANCH" \
+            .
+
+      - name: Push
+        if: github.ref == 'refs/heads/main'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.core.outputs.tag }}
+        run: |
+          printf '%s' "$TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          podman push "$IMAGE:$TAG"
+          podman push "$IMAGE:$MW_BRANCH"
+          echo "Pushed $IMAGE:$TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      # The runner keeps its image store between jobs; do not let it grow.
+      - name: Clean up
+        if: always()
+        env:
+          TAG: ${{ steps.core.outputs.tag }}
+        run: |
+          podman logout ghcr.io || true
+          podman rmi --ignore "$IMAGE:$TAG" "$IMAGE:$MW_BRANCH" || true
+          podman image prune --force

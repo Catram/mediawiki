@@ -1,0 +1,26 @@
+# Skins and extensions in the image, as paths under mediawiki/ on Wikimedia's
+# Gerrit. Each is cloned at the same release branch as core (MW_BRANCH).
+# Which ones a wiki loads is up to settings/<wiki>.php.
+
+skins/CologneBlue
+skins/Modern
+skins/MonoBook
+skins/Vector
+
+extensions/Cite
+extensions/CiteThisPage
+extensions/CodeEditor
+extensions/Disambiguator
+extensions/Gadgets
+extensions/InputBox
+extensions/Interwiki
+extensions/LabeledSectionTransclusion
+extensions/Math
+extensions/OATHAuth
+extensions/PagedTiffHandler
+extensions/ParserFunctions
+extensions/PdfHandler
+extensions/Poem
+extensions/ProofreadPage
+extensions/SyntaxHighlight_GeSHi
+extensions/WikiEditor
