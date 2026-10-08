@@ -6,13 +6,15 @@ on:
   # Builds without pushing, as the check Dependabot's pull requests wait for.
   pull_request:
     branches: [main]
-  # Weekly, for fixes to the PHP image.
+  # Weekly, for fixes backported to the skins and extensions (see the pins
+  # job). Fixes to the PHP image come as Dependabot's pull requests.
   schedule:
     - cron: "23 4 * * 1"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # The pins job commits moved pins to main.
+  contents: write
   packages: write
 
 concurrency:
@@ -23,11 +25,86 @@ env:
   IMAGE: ghcr.io/catram/mediawiki
 
 jobs:
+  # Weekly and by hand: finds what changed since the published image. It moves
+  # the pins in extensions.tsv to ExtensionDistributor's current tarballs and
+  # commits them if they moved, and checks whether the base image in the
+  # Containerfile is the one the published image was built on. The build
+  # follows only if either changed, so a week with nothing new builds nothing.
+  # A tarball that is not built yet fails this job, and next week's run tries
+  # again.
+  changes:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      # The commit with the moved pins; empty if none moved.
+      ref: ${{ steps.commit.outputs.commit-hash }}
+      # true if the published image was built on another base image.
+      base: ${{ steps.base.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Each build records its base image in a label; an image without it was
+      # built before the label existed, and counts as changed.
+      - name: Compare the base image
+        id: base
+        run: |
+          version=$(sed -n 's/^ARG MW_VERSION=//p' Containerfile)
+          base=$(sed -n 's/^FROM [^@]*@//p' Containerfile)
+          test -n "$base"
+          built=$(skopeo inspect \
+            --format '{{ index .Labels "org.opencontainers.image.base.digest" }}' \
+            "docker://$IMAGE:${version%.*}" || true)
+          if [ "$built" = "$base" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Base image: ${built:-unknown} -> $base" >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Move the pins
+        id: moved
+        run: |
+          sh update-extensions.sh 2> "$RUNNER_TEMP/moved.txt" || {
+            cat "$RUNNER_TEMP/moved.txt" >&2
+            exit 1
+          }
+          cat "$RUNNER_TEMP/moved.txt" >&2
+          {
+            echo 'message<<EOF'
+            echo 'fix: move extension pins'
+            echo
+            echo "Moves the pins in extensions.tsv to ExtensionDistributor's current tarballs:"
+            echo
+            grep -- ' -> ' "$RUNNER_TEMP/moved.txt" || true
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit pins
+        id: commit
+        uses: planetscale/ghcommit-action@v0.2.22
+        with:
+          commit_message: ${{ steps.moved.outputs.message }}
+          repo: ${{ github.repository }}
+          branch: ${{ github.ref_name }}
+          file_pattern: extensions.tsv
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
+    needs: changes
+    # Runs on every push and pull request, when the changes job is skipped, and
+    # after the changes job only if it found something new.
+    if: >-
+      !cancelled() && (github.event_name == 'push' ||
+      github.event_name == 'pull_request' || needs.changes.outputs.ref != '' ||
+      needs.changes.outputs.base == 'true')
     # GitHub's Ubuntu image comes with Podman.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The commit with the moved pins, when the changes job made one.
+          ref: ${{ needs.changes.outputs.ref || github.sha }}
 
       - name: Read the pinned MediaWiki version
         id: mw
@@ -37,17 +114,26 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "series=${version%.*}" >> "$GITHUB_OUTPUT"
           echo "tag=$version-$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          base=$(sed -n 's/^FROM //p' Containerfile)
+          echo "base-name=${base%@*}" >> "$GITHUB_OUTPUT"
+          echo "base-digest=${base#*@}" >> "$GITHUB_OUTPUT"
 
       - name: Build
         env:
           VERSION: ${{ steps.mw.outputs.version }}
           SERIES: ${{ steps.mw.outputs.series }}
           TAG: ${{ steps.mw.outputs.tag }}
+          REVISION: ${{ steps.mw.outputs.revision }}
+          BASE_NAME: ${{ steps.mw.outputs.base-name }}
+          BASE_DIGEST: ${{ steps.mw.outputs.base-digest }}
         run: |
-          podman build --pull=always \
+          podman build \
             --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --label org.opencontainers.image.revision="$REVISION" \
             --label org.opencontainers.image.version="$VERSION" \
+            --label org.opencontainers.image.base.name="$BASE_NAME" \
+            --label org.opencontainers.image.base.digest="$BASE_DIGEST" \
             --tag "$IMAGE:$TAG" \
             --tag "$IMAGE:$SERIES" \
             .

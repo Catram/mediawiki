@@ -12,8 +12,8 @@ Podman Quadlet, one account per wiki, behind nginx on the host.
   `Containerfile`. The release brings `vendor/` and its bundled skins and
   extensions; the web installer, `mw-config/`, is left out.
 - The skins and extensions in `extensions.tsv` that the release does not
-  bundle, from [ExtensionDistributor](https://www.mediawiki.org/wiki/Special:ExtensionDistributor),
-  each checked against its SHA-256. Nothing runs Composer.
+  bundle, from [ExtensionDistributor](https://www.mediawiki.org/wiki/Special:ExtensionDistributor):
+  each one's current tarball for the release's branch. Nothing runs Composer.
 - The changes in `patches/`.
 - PHP 8.4 with Apache, configured by `apache.conf` and `php.ini`. Only
   MediaWiki's entry points run as PHP.
@@ -46,37 +46,65 @@ image:
 php /var/www/html/w/maintenance/run.php runJobs --wait
 ```
 
+## Memory
+
+These environment variables size PHP and Apache. The defaults suit a site
+with little traffic; set any of them in the container's environment to change
+it.
+
+| Variable | Default | Sets |
+|---|---|---|
+| `PHP_MEMORY_LIMIT` | `256M` | `memory_limit`: the most one request may use |
+| `PHP_OPCACHE_MEMORY` | `128` | `opcache.memory_consumption`, in MB: compiled code, shared by all processes |
+| `PHP_APCU_SIZE` | `32M` | `apc.shm_size`: APCu's shared cache, used for `$wgMainCacheType = CACHE_ACCEL` |
+| `APACHE_START_SERVERS` | `2` | `StartServers` |
+| `APACHE_MIN_SPARE_SERVERS` | `1` | `MinSpareServers` |
+| `APACHE_MAX_SPARE_SERVERS` | `3` | `MaxSpareServers`: idle processes beyond this are stopped |
+| `APACHE_MAX_REQUEST_WORKERS` | `10` | `MaxRequestWorkers`: requests served at once; others wait |
+| `APACHE_MAX_CONNECTIONS_PER_CHILD` | `500` | `MaxConnectionsPerChild`: a process is replaced after this many |
+
+Each Apache process holds its own PHP memory, so the process counts matter
+most. The shared caches only take memory as they fill.
+
 ## Skins and extensions
 
 Which ones a wiki loads is up to `LocalSettings.php` and the wiki's own
 settings. Those the release bundles need nothing more; check the
 release's `extensions/` and `skins/` folders. Any other is a row in
 `extensions.tsv`, tab-separated with a header: `path` (e.g.
-`extensions/Disambiguator`), `url`, `sha256` and `note`. The tarball must hold
-one folder named like the last part of the path. Listing one the release
-already bundles fails the build.
+`extensions/Disambiguator`), `url`, `sha256` and `note`. Listing one the
+release already bundles fails the build.
 
-Take the URL for the release's branch (`REL1_46` for 1.46) from
-ExtensionDistributor, or for many at once from its API:
-
-```sh
-curl -s 'https://www.mediawiki.org/w/api.php?action=query&list=extdistbranches&format=json&edbexts=Disambiguator|ProofreadPage&edbskins=Modern'
-```
-
-and its SHA-256:
+The URL and SHA-256 pin an ExtensionDistributor tarball, which the build
+downloads and checks. `update-extensions.sh` moves the pins: it asks
+ExtensionDistributor's API, in one request, for each one's current tarball
+for the release's branch (`REL1_46` for 1.46), the same that
+[Special:ExtensionDistributor](https://www.mediawiki.org/wiki/Special:ExtensionDistributor)
+hands out, and prints what moved. To add one, add a row with just its path
+and run it:
 
 ```sh
-curl -fsSL <url> | sha256sum
+sh update-extensions.sh
 ```
 
-ExtensionDistributor keeps only the newest tarball of each branch. When a fix
-is backported, the pinned URL disappears and the build fails with a 404 until
-the row is updated.
+ExtensionDistributor keeps only the newest tarball of each branch, and its
+API can name a tarball before it is built. Then the script changes nothing
+and says so; run it again later.
 
 ## Building
 
-Every push to `main` builds and pushes the image on a GitHub-hosted runner,
-and so does a weekly scheduled run, which picks up fixes to the PHP image.
+Every push to `main` builds and pushes the image on a GitHub-hosted runner.
+The base image is pinned by digest in the `Containerfile`, and Dependabot's
+pull requests move it, so a build depends only on the commit. Each build
+records its base image in the `org.opencontainers.image.base.digest` label.
+
+A weekly scheduled run builds only if something changed since the published
+image: it moves the extension pins with `update-extensions.sh` and commits
+them if one moved, with what moved in the message, and compares the base
+image in the `Containerfile` with the published image's label. A week with
+nothing new builds nothing. If a tarball is not built yet, the run fails and
+next week's tries again; run the workflow by hand to try sooner.
+
 Each build is tagged `<version>-<run number>`, e.g. `1.46.2-4`; deployments
 pin one of these tags. The series tag, e.g. `1.46`, always points to the
 latest build.
@@ -88,5 +116,5 @@ To move to a new release, change `MW_VERSION` and `MW_SHA256` in the
 curl -fsSL https://releases.wikimedia.org/mediawiki/1.46/mediawiki-1.46.2.tar.gz | sha256sum
 ```
 
-For a new release series, also update every URL in `extensions.tsv` to the
-new branch, and check that every patch still applies.
+For a new release series, also run `update-extensions.sh` to move every pin
+to the new branch, and check that every patch still applies.

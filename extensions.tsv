@@ -1,7 +1,7 @@
 path	url	sha256	note
-skins/CologneBlue	https://extdist.wmflabs.org/dist/skins/CologneBlue-REL1_46-b84cc14.tar.gz	85359c55e7c7d5dfd4cfd07648d89c5d734d61dfb4cb3a64e5c5f8da7da2c418
-skins/Modern	https://extdist.wmflabs.org/dist/skins/Modern-REL1_46-923cb21.tar.gz	e4e3538056494ed3106eb946b16b91e37c21e64c5f86e90e2868d01df1c23dfe
-extensions/Disambiguator	https://extdist.wmflabs.org/dist/extensions/Disambiguator-REL1_46-0b8ccab.tar.gz	c60cae963a73b97480dfd8ed79dec17d6b7936f03664ac91af19a20eba63fdf5
-extensions/LabeledSectionTransclusion	https://extdist.wmflabs.org/dist/extensions/LabeledSectionTransclusion-REL1_46-04d749f.tar.gz	0aabce3070ac225758f004986aa9c01fa8e5083a34b66dc1bbc1c4a3beae63b0
-extensions/PagedTiffHandler	https://extdist.wmflabs.org/dist/extensions/PagedTiffHandler-REL1_46-da95a95.tar.gz	eef766ecc0abc62419ef7eb91a448bd818b9a5f7139cc6b83512ebf991cb8645
-extensions/ProofreadPage	https://extdist.wmflabs.org/dist/extensions/ProofreadPage-REL1_46-4ad9eb2.tar.gz	9ac39fe9fc55c4bc78c951c624e1152dcf6466caa99b604bdcd4208a3c86501b
+skins/CologneBlue	https://extdist.wmflabs.org/dist/skins/CologneBlue-REL1_46-e4527ba.tar.gz	0022bd1a9f8047e9bf7294acb79e025368842fcf7d395757632f8ace31310868	
+skins/Modern	https://extdist.wmflabs.org/dist/skins/Modern-REL1_46-233b6bf.tar.gz	88bb8c9876cd58927978db9048d049d4b113db6fa207c33fb5ab10d7189bbb99	
+extensions/Disambiguator	https://extdist.wmflabs.org/dist/extensions/Disambiguator-REL1_46-96ec5ec.tar.gz	caeda828880ea2d8d2804d242ddfa25caa051720ef594a9b056b6b8a02c3e10a	
+extensions/LabeledSectionTransclusion	https://extdist.wmflabs.org/dist/extensions/LabeledSectionTransclusion-REL1_46-04d749f.tar.gz	0aabce3070ac225758f004986aa9c01fa8e5083a34b66dc1bbc1c4a3beae63b0	
+extensions/PagedTiffHandler	https://extdist.wmflabs.org/dist/extensions/PagedTiffHandler-REL1_46-da95a95.tar.gz	eef766ecc0abc62419ef7eb91a448bd818b9a5f7139cc6b83512ebf991cb8645	
+extensions/ProofreadPage	https://extdist.wmflabs.org/dist/extensions/ProofreadPage-REL1_46-7b34246.tar.gz	89dc4e53583d4184371c6177811cb54b76b1561f78f2c5921357a7dea7a2b080	
