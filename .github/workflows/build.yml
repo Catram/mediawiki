@@ -1,11 +1,19 @@
 name: Build
 
+# mwfetch has its own workflow, mwfetch.yml; a change only to it builds
+# nothing here.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - mwfetch/**
+      - .github/workflows/mwfetch.yml
   # Builds without pushing, as the check Dependabot's pull requests wait for.
   pull_request:
     branches: [main]
+    paths-ignore:
+      - mwfetch/**
+      - .github/workflows/mwfetch.yml
   # Weekly, for fixes backported to the skins and extensions (see the pins
   # job). Fixes to the PHP image come as Dependabot's pull requests.
   schedule:
@@ -62,19 +70,17 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: mwfetch/go.mod
-          # mwfetch has no dependencies to cache.
-          cache: false
-
-      # mwfetch prints each pin it moves, and nothing else, on standard
-      # output.
+      # With the mwfetch image the fetch stage is pinned to. It prints each pin
+      # it moves, and nothing else, on standard output.
       - name: Move the pins
         id: moved
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          go -C mwfetch build -o "$RUNNER_TEMP/mwfetch" .
-          "$RUNNER_TEMP/mwfetch" update | tee "$RUNNER_TEMP/moved.txt"
+          mwfetch=$(sed -n 's/^FROM \(ghcr\.io\/catram\/mwfetch[^ ]*\) AS fetch$/\1/p' Containerfile)
+          test -n "$mwfetch"
+          printf '%s' "$TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          podman run --rm -v "$PWD:/work" -w /work "$mwfetch" mwfetch update | tee "$RUNNER_TEMP/moved.txt"
           {
             echo 'message<<EOF'
             echo 'fix: move extension pins'
@@ -112,14 +118,6 @@ jobs:
           # The commit with the moved pins, when the changes job made one.
           ref: ${{ needs.changes.outputs.ref || github.sha }}
 
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: mwfetch/go.mod
-          cache: false
-
-      - name: Test mwfetch
-        run: go -C mwfetch test ./...
-
       - name: Read the pinned MediaWiki version
         id: mw
         run: |
@@ -132,6 +130,13 @@ jobs:
           base=$(sed -n 's/^FROM //p' Containerfile | tail -n 1)
           echo "base-name=${base%@*}" >> "$GITHUB_OUTPUT"
           echo "base-digest=${base#*@}" >> "$GITHUB_OUTPUT"
+
+      # To pull the mwfetch image, and to push.
+      - name: Log in to ghcr.io
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
       - name: Build
         env:
@@ -155,11 +160,9 @@ jobs:
       - name: Push
         if: github.ref == 'refs/heads/main'
         env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SERIES: ${{ steps.mw.outputs.series }}
           TAG: ${{ steps.mw.outputs.tag }}
         run: |
-          printf '%s' "$TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           podman push "$IMAGE:$TAG"
           podman push "$IMAGE:$SERIES"
           podman logout ghcr.io

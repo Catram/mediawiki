@@ -97,9 +97,10 @@ and says so; run it again later.
 
 `mwfetch/` is a small Go program, with no dependencies beyond the standard
 library, that does the downloading: `mwfetch install` for the build and
-`mwfetch update` for the pins (see `mwfetch/main.go`). The `fetch` stage of
-the `Containerfile` builds it on the Go image and runs it, so the PHP image
-needs no download tools. It refuses a tarball whose entries or links would
+`mwfetch update` for the pins (see `mwfetch/main.go`). It is published as its
+own image, `ghcr.io/catram/mwfetch`, with `patch` for `patches/`; the `fetch`
+stage of the `Containerfile` runs it, so the PHP image needs no download
+tools, and the weekly run moves the pins with it. It refuses a tarball whose entries or links would
 land outside the folder it unpacks into, and writes files as 0644, or 0755 if
 the tarball marks them executable, owned by whoever runs it. Its tests:
 
@@ -107,12 +108,19 @@ the tarball marks them executable, owned by whoever runs it. Its tests:
 go -C mwfetch test ./...
 ```
 
+The `mwfetch` workflow builds the image from `mwfetch/Containerfile`,
+running the tests, whenever `mwfetch/` changes. On `main` it pushes the image,
+tagged with the run number and `latest`, and commits the new tag and digest
+into the `fetch` stage's `FROM`. A change only to `mwfetch/` does not rebuild
+the wiki image; the next build uses the new pin. Use a new feature of
+`mwfetch` in the `Containerfile` only after that commit.
+
 ## Building
 
 Every push to `main` builds and pushes the image on a GitHub-hosted runner.
-The base image, and the Go image of the `fetch` stage, are pinned by digest
-in the `Containerfile`, and Dependabot's pull requests move them, so a build
-depends only on the commit. Each build records its base image in the
+The base image and the mwfetch image are pinned by digest in the
+`Containerfile`, so a build depends only on the commit; Dependabot's pull
+requests move the base image, and the `mwfetch` workflow moves its own. Each build records its base image in the
 `org.opencontainers.image.base.digest` label.
 
 A weekly scheduled run builds only if something changed since the published

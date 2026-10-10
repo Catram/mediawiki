@@ -1,0 +1,20 @@
+# mwfetch, published as ghcr.io/catram/mwfetch, for the fetch stage of the
+# image's Containerfile and the weekly pins job: the program, with the CA
+# certificates it needs to download and patch(1) for patches/. Built by
+# .github/workflows/mwfetch.yml whenever this folder changes.
+
+# Pinned by digest, so a build depends only on the commit; Dependabot moves
+# the pins when the images are updated.
+FROM docker.io/library/golang:1.27-trixie@sha256:2f84bc93ecfb2689f782b153fdcd368b5a7ab96c1386c65cdaccf35e726d6a44 AS build
+WORKDIR /src
+COPY . .
+RUN set -eux; \
+	go test ./...; \
+	CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /mwfetch .
+
+FROM docker.io/library/debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
+RUN set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates patch; \
+	rm -rf /var/lib/apt/lists/*
+COPY --from=build /mwfetch /usr/local/bin/mwfetch

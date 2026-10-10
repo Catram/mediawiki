@@ -1,5 +1,6 @@
 version: 2
 updates:
+  # The actions in every workflow in .github/workflows, mwfetch.yml included.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -8,6 +9,12 @@ updates:
   # The base image in the Containerfile, e.g. a new PHP minor version.
   - package-ecosystem: docker
     directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+  # The Go and Debian images mwfetch's image is built on.
+  - package-ecosystem: docker
+    directory: "/mwfetch"
     schedule:
       interval: daily
     open-pull-requests-limit: 10

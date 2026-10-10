@@ -2,22 +2,16 @@
 # extensions, the others in extensions.tsv, and patches/ applied, on PHP and
 # Apache. One image serves every wiki; MW_WIKI picks the settings at run time.
 
-# Both images are pinned by digest, so a build depends only on the commit;
-# Dependabot moves the pins when the images are updated.
+# The images are pinned by digest, so a build depends only on the commit.
+# Dependabot moves the PHP image's pin, and .github/workflows/mwfetch.yml
+# moves mwfetch's when it publishes a new one.
 
 # The code, in a stage of its own: mwfetch (see mwfetch/main.go) downloads the
 # release tarball from releases.wikimedia.org and the ExtensionDistributor
 # tarballs pinned in extensions.tsv, checks each against its SHA-256, and
 # unpacks them, all owned by root. Then the local changes, as patches relative
 # to w/, are applied in name order. Only w/ is copied into the image.
-FROM docker.io/library/golang:1.27-trixie@sha256:2f84bc93ecfb2689f782b153fdcd368b5a7ab96c1386c65cdaccf35e726d6a44 AS fetch
-RUN set -eux; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends patch; \
-	rm -rf /var/lib/apt/lists/*
-WORKDIR /src/mwfetch
-COPY mwfetch/ ./
-RUN CGO_ENABLED=0 go build -o /usr/local/bin/mwfetch .
+FROM ghcr.io/catram/mwfetch:latest AS fetch
 ARG MW_VERSION=1.46.2
 ARG MW_SHA256=8f7f937f8bbc1acd4cef1c5362a95f248dcd242020f2588798eb2f73ac2e69ba
 COPY extensions.tsv /src/

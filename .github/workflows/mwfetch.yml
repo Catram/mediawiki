@@ -1,0 +1,89 @@
+name: mwfetch
+
+# Builds ghcr.io/catram/mwfetch when mwfetch/ changes, and moves the pin in
+# the Containerfile's fetch stage to it. The image build itself does not
+# depend on mwfetch's source, so a change here does not rebuild the wiki
+# image; the next build uses the new pin.
+on:
+  push:
+    branches: [main]
+    paths:
+      - mwfetch/**
+      - .github/workflows/mwfetch.yml
+  # Builds and tests without pushing.
+  pull_request:
+    branches: [main]
+    paths:
+      - mwfetch/**
+      - .github/workflows/mwfetch.yml
+  workflow_dispatch:
+
+permissions:
+  # Commits the moved pin to main.
+  contents: write
+  packages: write
+
+concurrency:
+  group: mwfetch-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/catram/mwfetch
+
+jobs:
+  # Named like the image's job, the check Dependabot's pull requests wait for.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The image's build stage runs mwfetch's tests.
+      - name: Build
+        run: |
+          base=$(sed -n 's/^FROM //p' mwfetch/Containerfile | tail -n 1)
+          podman build \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --label org.opencontainers.image.base.name="${base%@*}" \
+            --label org.opencontainers.image.base.digest="${base#*@}" \
+            --tag "$IMAGE:$GITHUB_RUN_NUMBER" \
+            --tag "$IMAGE:latest" \
+            mwfetch
+
+      - name: Push
+        id: push
+        if: github.ref == 'refs/heads/main'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          podman push --digestfile "$RUNNER_TEMP/digest" "$IMAGE:$GITHUB_RUN_NUMBER"
+          podman push "$IMAGE:latest"
+          podman logout ghcr.io
+          echo "digest=$(cat "$RUNNER_TEMP/digest")" >> "$GITHUB_OUTPUT"
+          echo "Pushed $IMAGE:$GITHUB_RUN_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Move the pin
+        if: github.ref == 'refs/heads/main'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          pin="FROM $IMAGE:$GITHUB_RUN_NUMBER@$DIGEST AS fetch"
+          sed -i "s|^FROM ghcr\.io/catram/mwfetch[^ ]* AS fetch\$|$pin|" Containerfile
+          grep -qxF "$pin" Containerfile
+
+      # Fails if main has moved since this run's commit; run the workflow by
+      # hand to build from the new one.
+      - name: Commit the pin
+        if: github.ref == 'refs/heads/main'
+        uses: planetscale/ghcommit-action@v0.2.22
+        with:
+          commit_message: |
+            fix: move the mwfetch pin
+
+            Pins ${{ env.IMAGE }}:${{ github.run_number }}, built from ${{ github.sha }}.
+          repo: ${{ github.repository }}
+          branch: ${{ github.ref_name }}
+          file_pattern: Containerfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
