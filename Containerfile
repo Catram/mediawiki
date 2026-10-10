@@ -24,7 +24,7 @@ RUN set -eux; \
 	patch -d /out/w -p1 --forward --batch < "$p"; \
 	done
 
-FROM docker.io/library/php:8.4-apache@sha256:901b0dbcd2419cc9cd307ea05e57403449ce722ccd5b32335da6e8d39f2b1ee0
+FROM docker.io/library/php:8.5-apache@sha256:974e3a920309308e1690ed607e6cc3061d6906f90cc8d30fe519daa48bccf101
 
 # Tools that MediaWiki and the extensions call: ImageMagick for thumbnails,
 # Ghostscript and poppler for PdfHandler, libtiff for PagedTiffHandler, rsvg
