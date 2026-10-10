@@ -43,13 +43,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Each build records its base image in a label; an image without it was
-      # built before the label existed, and counts as changed.
+      # Each build records its base image, the last FROM, in a label; an image
+      # without it was built before the label existed, and counts as changed.
       - name: Compare the base image
         id: base
         run: |
           version=$(sed -n 's/^ARG MW_VERSION=//p' Containerfile)
-          base=$(sed -n 's/^FROM [^@]*@//p' Containerfile)
+          base=$(sed -n 's/^FROM //p' Containerfile | tail -n 1)
+          base=${base#*@}
           test -n "$base"
           built=$(skopeo inspect \
             --format '{{ index .Labels "org.opencontainers.image.base.digest" }}' \
@@ -61,21 +62,26 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: mwfetch/go.mod
+          # mwfetch has no dependencies to cache.
+          cache: false
+
+      # mwfetch prints each pin it moves, and nothing else, on standard
+      # output.
       - name: Move the pins
         id: moved
         run: |
-          sh update-extensions.sh 2> "$RUNNER_TEMP/moved.txt" || {
-            cat "$RUNNER_TEMP/moved.txt" >&2
-            exit 1
-          }
-          cat "$RUNNER_TEMP/moved.txt" >&2
+          go -C mwfetch build -o "$RUNNER_TEMP/mwfetch" .
+          "$RUNNER_TEMP/mwfetch" update | tee "$RUNNER_TEMP/moved.txt"
           {
             echo 'message<<EOF'
             echo 'fix: move extension pins'
             echo
             echo "Moves the pins in extensions.tsv to ExtensionDistributor's current tarballs:"
             echo
-            grep -- ' -> ' "$RUNNER_TEMP/moved.txt" || true
+            cat "$RUNNER_TEMP/moved.txt"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
@@ -106,6 +112,14 @@ jobs:
           # The commit with the moved pins, when the changes job made one.
           ref: ${{ needs.changes.outputs.ref || github.sha }}
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: mwfetch/go.mod
+          cache: false
+
+      - name: Test mwfetch
+        run: go -C mwfetch test ./...
+
       - name: Read the pinned MediaWiki version
         id: mw
         run: |
@@ -115,7 +129,7 @@ jobs:
           echo "series=${version%.*}" >> "$GITHUB_OUTPUT"
           echo "tag=$version-$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          base=$(sed -n 's/^FROM //p' Containerfile)
+          base=$(sed -n 's/^FROM //p' Containerfile | tail -n 1)
           echo "base-name=${base%@*}" >> "$GITHUB_OUTPUT"
           echo "base-digest=${base#*@}" >> "$GITHUB_OUTPUT"
 

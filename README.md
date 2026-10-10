@@ -15,6 +15,8 @@ Podman Quadlet, one account per wiki, behind nginx on the host.
   bundle, from [ExtensionDistributor](https://www.mediawiki.org/wiki/Special:ExtensionDistributor):
   each one's current tarball for the release's branch. Nothing runs Composer.
 - The changes in `patches/`.
+- All of the above owned by root. It is downloaded and checked by `mwfetch`
+  in a build stage of its own, and only the result is copied into the image.
 - PHP 8.4 with Apache, configured by `apache.conf` and `php.ini`. Only
   MediaWiki's entry points run as PHP.
 - No `LocalSettings.php`: each wiki's deployment mounts its own, with the
@@ -76,30 +78,45 @@ release's `extensions/` and `skins/` folders. Any other is a row in
 release already bundles fails the build.
 
 The URL and SHA-256 pin an ExtensionDistributor tarball, which the build
-downloads and checks. `update-extensions.sh` moves the pins: it asks
+downloads and checks. `mwfetch update` moves the pins: it asks
 ExtensionDistributor's API, in one request, for each one's current tarball
 for the release's branch (`REL1_46` for 1.46), the same that
 [Special:ExtensionDistributor](https://www.mediawiki.org/wiki/Special:ExtensionDistributor)
 hands out, and prints what moved. To add one, add a row with just its path
-and run it:
+and run it, which needs Go:
 
 ```sh
-sh update-extensions.sh
+go -C mwfetch run . update -containerfile ../Containerfile -list ../extensions.tsv
 ```
 
 ExtensionDistributor keeps only the newest tarball of each branch, and its
-API can name a tarball before it is built. Then the script changes nothing
+API can name a tarball before it is built. Then `mwfetch` changes nothing
 and says so; run it again later.
+
+## mwfetch
+
+`mwfetch/` is a small Go program, with no dependencies beyond the standard
+library, that does the downloading: `mwfetch install` for the build and
+`mwfetch update` for the pins (see `mwfetch/main.go`). The `fetch` stage of
+the `Containerfile` builds it on the Go image and runs it, so the PHP image
+needs no download tools. It refuses a tarball whose entries or links would
+land outside the folder it unpacks into, and writes files as 0644, or 0755 if
+the tarball marks them executable, owned by whoever runs it. Its tests:
+
+```sh
+go -C mwfetch test ./...
+```
 
 ## Building
 
 Every push to `main` builds and pushes the image on a GitHub-hosted runner.
-The base image is pinned by digest in the `Containerfile`, and Dependabot's
-pull requests move it, so a build depends only on the commit. Each build
-records its base image in the `org.opencontainers.image.base.digest` label.
+The base image, and the Go image of the `fetch` stage, are pinned by digest
+in the `Containerfile`, and Dependabot's pull requests move them, so a build
+depends only on the commit. Each build records its base image in the
+`org.opencontainers.image.base.digest` label.
 
 A weekly scheduled run builds only if something changed since the published
-image: it moves the extension pins with `update-extensions.sh` and commits
+image: it moves the extension pins with `mwfetch update` and commits
 them if one moved, with what moved in the message, and compares the base
 image in the `Containerfile` with the published image's label. A week with
 nothing new builds nothing. If a tarball is not built yet, the run fails and
@@ -116,5 +133,5 @@ To move to a new release, change `MW_VERSION` and `MW_SHA256` in the
 curl -fsSL https://releases.wikimedia.org/mediawiki/1.46/mediawiki-1.46.2.tar.gz | sha256sum
 ```
 
-For a new release series, also run `update-extensions.sh` to move every pin
+For a new release series, also run `mwfetch update` to move every pin
 to the new branch, and check that every patch still applies.

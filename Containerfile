@@ -2,8 +2,34 @@
 # extensions, the others in extensions.tsv, and patches/ applied, on PHP and
 # Apache. One image serves every wiki; MW_WIKI picks the settings at run time.
 
-# Pinned by digest, so a build depends only on the commit; Dependabot moves
-# the pin when the image is updated.
+# Both images are pinned by digest, so a build depends only on the commit;
+# Dependabot moves the pins when the images are updated.
+
+# The code, in a stage of its own: mwfetch (see mwfetch/main.go) downloads the
+# release tarball from releases.wikimedia.org and the ExtensionDistributor
+# tarballs pinned in extensions.tsv, checks each against its SHA-256, and
+# unpacks them, all owned by root. Then the local changes, as patches relative
+# to w/, are applied in name order. Only w/ is copied into the image.
+FROM docker.io/library/golang:1.27-trixie@sha256:2f84bc93ecfb2689f782b153fdcd368b5a7ab96c1386c65cdaccf35e726d6a44 AS fetch
+RUN set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends patch; \
+	rm -rf /var/lib/apt/lists/*
+WORKDIR /src/mwfetch
+COPY mwfetch/ ./
+RUN CGO_ENABLED=0 go build -o /usr/local/bin/mwfetch .
+ARG MW_VERSION=1.46.2
+ARG MW_SHA256=8f7f937f8bbc1acd4cef1c5362a95f248dcd242020f2588798eb2f73ac2e69ba
+COPY extensions.tsv /src/
+COPY patches/ /src/patches/
+RUN set -eux; \
+	mwfetch install -version "$MW_VERSION" -sha256 "$MW_SHA256" \
+	-list /src/extensions.tsv /out/w; \
+	for p in /src/patches/*.patch; do \
+	[ -e "$p" ] || continue; \
+	patch -d /out/w -p1 --forward --batch < "$p"; \
+	done
+
 FROM docker.io/library/php:8.4-apache@sha256:901b0dbcd2419cc9cd307ea05e57403449ce722ccd5b32335da6e8d39f2b1ee0
 
 # Tools that MediaWiki and the extensions call: ImageMagick for thumbnails,
@@ -60,27 +86,8 @@ ENV PHP_MEMORY_LIMIT=256M \
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
 COPY php.ini /usr/local/etc/php/conf.d/mediawiki.ini
 
-# The release tarball from releases.wikimedia.org, checked against its
-# SHA-256, with vendor/ and the bundled skins and extensions, and the ones
-# pinned in extensions.tsv, each checked against its SHA-256 (see
-# install.sh). Then the local changes, as patches relative to w/, applied in
-# name order.
-ARG MW_VERSION=1.46.2
-ARG MW_SHA256=8f7f937f8bbc1acd4cef1c5362a95f248dcd242020f2588798eb2f73ac2e69ba
 WORKDIR /var/www/html
-COPY install.sh extensions.tsv /tmp/build/
-COPY patches/ /tmp/build/patches/
-RUN set -eux; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends wget patch; \
-	sh /tmp/build/install.sh "$MW_VERSION" "$MW_SHA256" /var/www/html/w; \
-	for p in /tmp/build/patches/*.patch; do \
-	[ -e "$p" ] || continue; \
-	patch -d w -p1 --forward --batch < "$p"; \
-	done; \
-	rm -rf /tmp/build; \
-	apt-get purge -y --auto-remove wget patch; \
-	rm -rf /var/lib/apt/lists/*
+COPY --from=fetch /out/w w/
 
 # Each wiki's files at the site root; apache.conf serves static/<MW_WIKI>/.
 COPY static/ static/
