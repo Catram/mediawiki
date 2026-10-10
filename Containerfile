@@ -24,7 +24,7 @@ RUN set -eux; \
 	patch -d /out/w -p1 --forward --batch < "$p"; \
 	done
 
-FROM docker.io/library/php:8.4-apache@sha256:901b0dbcd2419cc9cd307ea05e57403449ce722ccd5b32335da6e8d39f2b1ee0
+FROM docker.io/library/php:8.5-apache@sha256:974e3a920309308e1690ed607e6cc3061d6906f90cc8d30fe519daa48bccf101
 
 # Tools that MediaWiki and the extensions call: ImageMagick for thumbnails,
 # Ghostscript and poppler for PdfHandler, libtiff for PagedTiffHandler, rsvg
@@ -42,12 +42,13 @@ RUN set -eux; \
 	rm -rf /var/lib/apt/lists/*
 
 # PHP extensions. The build dependencies are removed again afterwards; only
-# the libraries the compiled extensions link to are kept.
+# the libraries the compiled extensions link to are kept. OPcache is built
+# into PHP since 8.5, and cannot be installed as an extension.
 RUN set -eux; \
 	savedAptMark="$(apt-mark showmanual)"; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends libicu-dev; \
-	docker-php-ext-install -j "$(nproc)" calendar intl mysqli opcache; \
+	docker-php-ext-install -j "$(nproc)" calendar intl mysqli; \
 	pecl install apcu; \
 	docker-php-ext-enable apcu; \
 	rm -rf /tmp/pear; \

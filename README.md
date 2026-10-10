@@ -17,7 +17,7 @@ Podman Quadlet, one account per wiki, behind nginx on the host.
 - The changes in `patches/`.
 - All of the above owned by root. It is downloaded and checked by `mwfetch`
   in a build stage of its own, and only the result is copied into the image.
-- PHP 8.4 with Apache, configured by `apache.conf` and `php.ini`. Only
+- PHP 8.5 with Apache, configured by `apache.conf` and `php.ini`. Only
   MediaWiki's entry points run as PHP.
 - No `LocalSettings.php`: each wiki's deployment mounts its own, with the
   skins and extensions it loads and its secrets.
