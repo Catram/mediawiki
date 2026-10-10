@@ -11,7 +11,7 @@
 # tarballs pinned in extensions.tsv, checks each against its SHA-256, and
 # unpacks them, all owned by root. Then the local changes, as patches relative
 # to w/, are applied in name order. Only w/ is copied into the image.
-FROM ghcr.io/catram/mwfetch:latest AS fetch
+FROM ghcr.io/catram/mwfetch:1@sha256:4893695afd70deefaedc9eb474ffe65b2e6dfe6fb007bff5c15bb44d8836d91f AS fetch
 ARG MW_VERSION=1.46.2
 ARG MW_SHA256=8f7f937f8bbc1acd4cef1c5362a95f248dcd242020f2588798eb2f73ac2e69ba
 COPY extensions.tsv /src/
