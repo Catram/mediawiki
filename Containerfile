@@ -42,12 +42,13 @@ RUN set -eux; \
 	rm -rf /var/lib/apt/lists/*
 
 # PHP extensions. The build dependencies are removed again afterwards; only
-# the libraries the compiled extensions link to are kept.
+# the libraries the compiled extensions link to are kept. OPcache is built
+# into PHP since 8.5, and cannot be installed as an extension.
 RUN set -eux; \
 	savedAptMark="$(apt-mark showmanual)"; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends libicu-dev; \
-	docker-php-ext-install -j "$(nproc)" calendar intl mysqli opcache; \
+	docker-php-ext-install -j "$(nproc)" calendar intl mysqli; \
 	pecl install apcu; \
 	docker-php-ext-enable apcu; \
 	rm -rf /tmp/pear; \
