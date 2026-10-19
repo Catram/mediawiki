@@ -1,5 +1,5 @@
 path	url	sha256	note
-skins/CologneBlue	https://extdist.wmflabs.org/dist/skins/CologneBlue-REL1_46-e4527ba.tar.gz	0022bd1a9f8047e9bf7294acb79e025368842fcf7d395757632f8ace31310868	
+skins/CologneBlue	https://extdist.wmflabs.org/dist/skins/CologneBlue-REL1_46-8968d75.tar.gz	7cf857219fea2372599dc2920959737dd5372712638fe95e39d88f534f5babe9	
 skins/Modern	https://extdist.wmflabs.org/dist/skins/Modern-REL1_46-233b6bf.tar.gz	88bb8c9876cd58927978db9048d049d4b113db6fa207c33fb5ab10d7189bbb99	
 extensions/Disambiguator	https://extdist.wmflabs.org/dist/extensions/Disambiguator-REL1_46-96ec5ec.tar.gz	caeda828880ea2d8d2804d242ddfa25caa051720ef594a9b056b6b8a02c3e10a	
 extensions/LabeledSectionTransclusion	https://extdist.wmflabs.org/dist/extensions/LabeledSectionTransclusion-REL1_46-04d749f.tar.gz	0aabce3070ac225758f004986aa9c01fa8e5083a34b66dc1bbc1c4a3beae63b0	
