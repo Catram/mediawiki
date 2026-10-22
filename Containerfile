@@ -11,18 +11,15 @@
 # tarballs pinned in extensions.tsv, checks each against its SHA-256, and
 # unpacks them, all owned by root. Then the local changes, as patches relative
 # to w/, are applied in name order. Only w/ is copied into the image.
-FROM ghcr.io/catram/mwfetch:1@sha256:4893695afd70deefaedc9eb474ffe65b2e6dfe6fb007bff5c15bb44d8836d91f AS fetch
+# For now w/ comes from 1.46.2-15, built from these same pins, because
+# extdist.wmflabs.org is down and mwfetch cannot reach it. Revert this once it
+# is back. The ARG lines stay, as the build workflow reads MW_VERSION here.
+FROM ghcr.io/catram/mediawiki:1.46.2-15@sha256:ba8c7a56c8417e069cf004a3269464f0d27cf324bda37262c16ecc7cbad2cccc AS fetch
 ARG MW_VERSION=1.46.2
 ARG MW_SHA256=8f7f937f8bbc1acd4cef1c5362a95f248dcd242020f2588798eb2f73ac2e69ba
-COPY extensions.tsv /src/
-COPY patches/ /src/patches/
 RUN set -eux; \
-	mwfetch install -version "$MW_VERSION" -sha256 "$MW_SHA256" \
-	-list /src/extensions.tsv /out/w; \
-	for p in /src/patches/*.patch; do \
-	[ -e "$p" ] || continue; \
-	patch -d /out/w -p1 --forward --batch < "$p"; \
-	done
+	mkdir /out; \
+	cp -a /var/www/html/w /out/w
 
 FROM docker.io/library/php:8.5-apache@sha256:5fec3fb1f0322c20a01c8af35a09a96f3a83aa369650b0fed161e91cb84056ed
 
