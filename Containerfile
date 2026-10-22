@@ -14,7 +14,7 @@
 # For now w/ comes from 1.46.2-15, built from these same pins, because
 # extdist.wmflabs.org is down and mwfetch cannot reach it. Revert this once it
 # is back. The ARG lines stay, as the build workflow reads MW_VERSION here.
-FROM ghcr.io/catram/mediawiki:1.46.2-15@sha256:ba8c7a56c8417e069cf004a3269464f0d27cf324bda37262c16ecc7cbad2cccc AS fetch
+FROM ghcr.io/catram/mediawiki:1.46.2-17@sha256:2cbc1151d21d4c52659a1cb2cf99758211e7ac48621ec267a050253e1ea86bf5 AS fetch
 ARG MW_VERSION=1.46.2
 ARG MW_SHA256=8f7f937f8bbc1acd4cef1c5362a95f248dcd242020f2588798eb2f73ac2e69ba
 RUN set -eux; \
