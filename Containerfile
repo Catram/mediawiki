@@ -21,7 +21,7 @@ RUN set -eux; \
 	mkdir /out; \
 	cp -a /var/www/html/w /out/w
 
-FROM docker.io/library/php:8.5-apache@sha256:7cd25eb48f9763dfeabe8fda3939897aca2001802fadeafa1b602f26c735ef96
+FROM docker.io/library/php:8.5-apache@sha256:4cc63b3d4e05c40da73e7af5d39364ca2678ac07208919497bda3bbab975be95
 
 # Tools that MediaWiki and the extensions call: ImageMagick for thumbnails,
 # Ghostscript and poppler for PdfHandler, libtiff for PagedTiffHandler, rsvg
